@@ -18,20 +18,23 @@ cap = cv2.VideoCapture(0)
 
 #TODO 문제점 : 출력자리에 리턴값이 들어가야함, hex_to_name 함수 사용
 
-def find_color(rgbValueList): # rgb_type
-    # cv2.putText(frame, rgb_to_hex(rgbValueList), (255, 450), font, 1, (255, 255, 255), 2)
+def find_color(hsvValueList): # hsv Type
+    # cv2.putText(frame, rgb_to_hex(hsvValueList), (255, 450), font, 1, (255, 255, 255), 2)
 
-    if (100 < rgbValueList[0] <= 255) and (rgbValueList[1] < 100) and (rgbValueList[2] < 100):
+    if (hsvValueList[0] >= 0 and hsvValueList[0] < 30 and hsvValueList[1] > 100) or (hsvValueList[0] > 168 and hsvValueList[0] < 183 and hsvValueList[1] > 100):
         cv2.putText(frame, "Red", (255, 450), font, 1, (255, 255, 255), 2)
         print("red")
-    if (100 < rgbValueList[1] <= 255) and (rgbValueList[0] < 100) and (rgbValueList[2] < 100):
+    if 60 < hsvValueList[0] < 89:
         cv2.putText(frame, "Green", (255, 450), font, 1, (255, 255, 255), 2)
         print("GREEN")
-    if (100 < rgbValueList[2] <= 255) and (rgbValueList[0] < 100) and (rgbValueList[1] < 100):
+    if (90 < hsvValueList[0] < 130) and hsvValueList[1] > 130:
         cv2.putText(frame, "Blue", (255, 450), font, 1, (255, 255, 255), 2)
         print("BLUE")
     else:
         print("NO COLOR")
+        # font = cv2.FONT_HERSHEY_SIMPLEX
+        
+
 
 def countfinger(frame, areacnt, arearatio, finger): # Counting Finger
     if finger == 1:
@@ -72,7 +75,7 @@ def rd_dff():
     # 손인식을 할 범위의 사이즈 (100,100),(400,500) 사각형의 모서리
     roi = frame[100:400, 100:400]
 
-    # roi 사각형의 프레임을 그려준다.
+    # roi 사각형의 프레임을 그려준다. 경계설정
     cv2.rectangle(frame, (100, 100), (400, 400), (0, 255, 0), 0)
 
     # roi 범위 안의 색영역추출
@@ -139,41 +142,40 @@ def rd_dff():
         # 코사인 법칙을 이용한 손가락 사이 각도
         angle = math.acos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c)) * 57
 
-        # 각도와 깊이를 확인해 far end start 각점에 표시
+        # 각도와 깊이를 확인해 far end start 각점에 표시 (주석처리)
         if angle <= 90 and d > 30:
             finger += 1
-            cv2.circle(roi, far, 6, [255, 0, 0], -1)
-            cv2.circle(roi, end, 6, [255, 0, 0], 1)
-            cv2.circle(roi, start, 6, [0, 0, 255], 1)
+        #     cv2.circle(roi, far, 6, [255, 0, 0], -1)
+        #     cv2.circle(roi, end, 6, [255, 0, 0], 1)
+        #     cv2.circle(roi, start, 6, [0, 0, 255], 1)
 
-        # 컨벡스홀 라인그리기 start-end로 각각
-        cv2.line(roi, start, end, [0, 255, 0], 2)
+        # 컨벡스홀 라인그리기 start-end로 각각 (주석처리해줌)
+        # cv2.line(roi, start, end, [0, 255, 0], 2)
 
     topmost = tuple(cnt[cnt[:, :, 1].argmin()][0])  # topmost : 손끝좌표
     cv2.rectangle(roi, (topmost[0] - 5, topmost[1] - 7), (topmost[0] + 5, topmost[1] - 2), (0, 255, 0), 0)
 
-    cv2.rectangle(frame, (200, 200), (300, 300), (255, 0, 0), 2)
+    # cv2.rectangle(frame, (200, 200), (300, 300), (255, 0, 0), 2)
 
     cx = int(M['m10'] / M['m00'])
     cy = int(M['m01'] / M['m00'])
-    cv2.circle(roi, (cx, cy), 6, [255, 0, 0], 1)  # 중점인데 필요없음
+    # cv2.circle(roi, (cx, cy), 6, [255, 0, 0], 1)  # 중점인데 필요없음 (주석처리)
     roi2 = frame[100:900, 100:900]
-    rgbroi = cv2.cvtColor(roi2, cv2.COLOR_BGR2RGB)
+    rgbroi = cv2.cvtColor(roi2, cv2.COLOR_BGR2HSV)
 
     # find rgb value and print rgb to string
 
-    rgbValueList = rgbroi[topmost[0] - 7, topmost[1]]
+    hsvValueList = rgbroi[topmost[0] - 7, topmost[1]]
     cv2.circle(roi, (topmost[0], topmost[1] - 15), 4, [0, 100, 100], -1)
-    return rgbValueList, finger, frame, areacnt, arearatio, mask
+    return hsvValueList, finger, frame, areacnt, arearatio, mask
 
 while(1):
-    try:  # an error comes if it does not find anything in window as it cannot find contour of max area
-          # therefore this try error statement
-        rgbValueList, finger, frame, areacnt, arearatio, mask = rd_dff()
+    try:
+        hsvValueList, finger, frame, areacnt, arearatio, mask = rd_dff()
 
         font = cv2.FONT_HERSHEY_SIMPLEX
-        find_color(rgbValueList)
-        print(rgbValueList)
+        find_color(hsvValueList)
+        print(hsvValueList)
         finger += 1
         countfinger(frame, areacnt, arearatio, finger)
         # show mask and frame
