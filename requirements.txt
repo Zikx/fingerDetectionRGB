@@ -1,4 +1,7 @@
 certifi==2019.3.9
 numpy==1.16.4
 opencv-python==4.1.0.25
+Pillow==6.0.0
+six==1.12.0
+webcolors==1.9
 wincertstore==0.2

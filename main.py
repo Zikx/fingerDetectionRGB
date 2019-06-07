@@ -8,17 +8,26 @@ cnt_red = 0
 cnt_blue = 0
 cnt_green = 0
 
+# def create_rectangle(frame):
+#     roi = frame[100:400, 100:400]
+#
+#     # roi 사각형의 프레임을 그려준다.
+#     cv2.rectangle(frame, (100, 100), (400, 400), (0, 255, 0), 0)
+
+
+
 
 while(1):
     try:  #an error comes if it does not find anything in window as it cannot find contour of max area
           #therefore this try error statement
         ret, frame = cap.read()
-        frame=cv2.flip(frame,1)
+        frame = cv2.flip(frame,1)
         #cv2.dilate에서 사용 할 커널의 크기 - 1값이 되는 외곽의 픽셀크기를 설정
-        kernel = np.ones((3,3),np.uint8)
+        kernel = np.ones((3, 3), np.uint8)
 
+        # create_rectangle()
         #손인식을 할 범위의 사이즈 (100,100),(400,500) 사각형의 모서리
-        roi=frame[100:400, 100:400]
+        roi = frame[100:400, 100:400]
 
         #roi 사각형의 프레임을 그려준다.
         cv2.rectangle(frame,(100,100),(400,400),(0,255,0),0)
@@ -44,14 +53,13 @@ while(1):
         contours,hierarchy= cv2.findContours(mask,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
     # cv2.findContours(입력이미지, 검출된 컨투어, 검출된 컨투어의 정보, 검출된 정보를 )
 
-   #경계선 중 최대값 찾기
-        cnt = max(contours, key = lambda x: cv2.contourArea(x))
+    #경계선 중 최대값 찾기
+        cnt = max(contours, key=lambda x: cv2.contourArea(x))
 
     #엡실론 값에 따라 컨투어 포인트의 값을 줄인다. 각지게 만듬 Douglas-Peucker 알고리즘 이용
         epsilon = 0.0005*cv2.arcLength(cnt,True)
         approx= cv2.approxPolyDP(cnt,epsilon,True)
         M = cv2.moments(cnt)
-        # print(M.items())
     #외곽의 점을 잇는 컨벡스 홀
         hull = cv2.convexHull(cnt)
 
@@ -67,15 +75,14 @@ while(1):
         defects = cv2.convexityDefects(approx, hull)
 
     # 깊이의 개수
-        l=0
+        count_finger = 0
     # 시작점, 끝점, 결점을 정한다
-        for i in range(defects.shape[0]):  # defects 컨벡스 결함의 수 만큼 반복
-            s, e, f, d = defects[i, 0]
+        for shape_index in range(defects.shape[0]):  # defects 컨벡스 결함의 수 만큼 반복
+            s, e, f, d = defects[shape_index, 0]
             start = tuple(approx[s][0])
             end = tuple(approx[e][0])
             far = tuple(approx[f][0])
             pt = (100, 180)
-
 
             # end,for,start 점의 삼각형 길이
             a = math.sqrt((end[0] - start[0])**2 + (end[1] - start[1])**2)
@@ -84,7 +91,7 @@ while(1):
             s = (a+b+c)/2
             ar = math.sqrt(s*(s-a)*(s-b)*(s-c))
 
-            #컨벡스 결함으로 이루어진 삼각형에서의 깊이
+            # 컨벡스 결함으로 이루어진 삼각형에서의 깊이
             d = (2*ar)/a
 
             # 코사인 법칙을 이용한 손가락 사이 각도
@@ -92,95 +99,90 @@ while(1):
 
             # 각도와 깊이를 확인해 far end start 각점에 표시
             if angle <= 90 and d > 30:
-                l += 1
+                count_finger += 1
                 cv2.circle(roi, far, 6, [255,0,0], -1)
                 cv2.circle(roi, end, 6, [255,0,0], 1)
                 cv2.circle(roi, start, 6, [0,0,255], 1)
 
-            #컨벡스홀 라인그리기 start-end로 각각
+            # 컨벡스홀 라인그리기 start-end로 각각
             cv2.line(roi, start, end, [0, 255, 0], 2)
 
-
-        ####
-        topmost = tuple(cnt[cnt[:, :, 1].argmin()][0])
+        topmost = tuple(cnt[cnt[:, :, 1].argmin()][0])  # topmost : 손끝좌표
         cv2.rectangle(roi, (topmost[0]-5, topmost[1]-7), (topmost[0]+5, topmost[1]-2), (0, 255, 0), 0)
 
         cx = int(M['m10'] / M['m00'])
         cy = int(M['m01'] / M['m00'])
-        cv2.circle(roi, (cx, cy), 6, [255, 0, 0], 1) # 중점인데 필요없음
+        cv2.circle(roi, (cx, cy), 6, [255, 0, 0], 1)  # 중점인데 필요없음
         roi2 = frame[100:900, 100:900]
         rgbroi = cv2.cvtColor(roi2, cv2.COLOR_BGR2RGB)
 
-        px = rgbroi[topmost[0]-7,topmost[1]]
-        cv2.circle(roi, (topmost[0],topmost[1]-15), 4, [0,100,100], -1)
+        # find rgb value and print rgb to string
+
+        rgbValueList = rgbroi[topmost[0]-7, topmost[1]]
+        cv2.circle(roi, (topmost[0], topmost[1]-15), 4, [0, 100, 100], -1)
 
         font = cv2.FONT_HERSHEY_SIMPLEX
-        if(px[0] > 150 and px[0] < 255 and px[1] < 100 and px[2] < 100):
+        if (100 < rgbValueList[0] <= 255) and (rgbValueList[1] < 100) and (rgbValueList[2] < 100):
             cnt_red += 1
-            if(cnt_red > 1):
+            if cnt_red > 1:
                 cv2.putText(frame, "Red", (255, 450), font, 1, (255, 255, 255), 2)
                 cnt_red = 0
             print("red")
-        elif(px[2] > 100 and px[1] < 255 and px[0] < 100 and px[2] < 100):
+        if(100 < rgbValueList[1] <= 255) and (rgbValueList[0] < 100) and (rgbValueList[2] < 100):
             cnt_green += 1
-            if (cnt_green > 1):
+            if cnt_green > 1:
                 cv2.putText(frame, "Green", (255, 450), font, 1, (255, 255, 255), 2)
                 cnt_green = 0
             print("GREEN")
-        elif(px[2] > 100 and px[2] < 255 and px[0] < 100 and px[1] < 100):
+        if(100 < rgbValueList[2] <= 255) and (rgbValueList[0] < 100) and (rgbValueList[1] < 100):
             cnt_blue += 1
-            if (cnt_blue > 1):
+            if cnt_blue > 1:
                 cv2.putText(frame, "Blue", (255, 450), font, 1, (255, 255, 255), 2)
                 cnt_blue = 0
             print("BLUE")
         else:
             print("NO COLOR")
 
-        print(px[2])
-        print('rgb: ', px)
+        print(rgbValueList[2])
+        print('rgb: ', rgbValueList)
 
         i = 0
-
+        count_finger += 1
         # display corresponding gestures which are in their ranges
 
-        if l==1:
+        if count_finger == 1:
             if areacnt < 2000:
                 cv2.putText(frame, 'Put hand in the box', (0, 50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
             else:
-                if arearatio<12:
+                if arearatio < 12:
                     cv2.putText(frame, '0', (0, 50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
 
                 else:
-                        cv2.putText(frame,'1',(0,50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
+                    cv2.putText(frame, '1', (0, 50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
 
-        elif l==2:
-            cv2.putText(frame,'2',(0,50), font, 2, (0,0,255), 3, cv2.LINE_AA)
+        elif count_finger == 2:
+            cv2.putText(frame, '2', (0, 50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
 
-        elif l==3:
+        elif count_finger == 3:
+            cv2.putText(frame, '3', (0, 50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
 
-             # if arearatio<27:
-                    cv2.putText(frame,'3',(0,50), font, 2, (0,0,255), 3, cv2.LINE_AA)
-             # else:
-              #      cv2.putText(frame,'ok',(0,50), font, 2, (0,0,255), 3, cv2.LINE_AA)
+        elif count_finger == 4:
+            cv2.putText(frame, '4', (0,50), font, 2, (0,0,255), 3, cv2.LINE_AA)
 
-        elif l==4:
-            cv2.putText(frame,'4',(0,50), font, 2, (0,0,255), 3, cv2.LINE_AA)
+        elif count_finger == 5:
+            cv2.putText(frame, '5', (0, 50), font, 2, (0,0,255), 3, cv2.LINE_AA)
 
-        elif l==5:
-            cv2.putText(frame,'5',(0,50), font, 2, (0,0,255), 3, cv2.LINE_AA)
+        elif count_finger == 6:
+            cv2.putText(frame, 'reposition', (0, 50), font, 2, (0,0,255), 3, cv2.LINE_AA)
 
-        elif l==6:
-            cv2.putText(frame,'reposition',(0,50), font, 2, (0,0,255), 3, cv2.LINE_AA)
-
-        else :
-            cv2.putText(frame,'reposition',(10,50), font, 2, (0,0,255), 3, cv2.LINE_AA)
-
-        cv2.imshow('mask',mask)
-        cv2.imshow('frame',frame)
+        else:
+            cv2.putText(frame, 'reposition', (10, 50), font, 2, (0, 0, 255), 3, cv2.LINE_AA)
+        # show mask and frame
+        cv2.imshow('mask', mask)
+        cv2.imshow('frame', frame)
 
     except:
         pass
-
 
     k = cv2.waitKey(5) & 0xFF
     if k == 27:

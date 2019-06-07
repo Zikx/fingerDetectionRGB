@@ -1,132 +1,199 @@
-import cv2 as cv
+import cv2
 import numpy as np
+import time
 
+# Open Camera object
+cap = cv2.VideoCapture(0)
 
-hsv = 0
-lower_blue1 = 0
-upper_blue1 = 0
-lower_blue2 = 0
-upper_blue2 = 0
-lower_blue3 = 0
-upper_blue3 = 0
+# Decrease frame size
+cap.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 1000)
+cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, 600)
+
 
 def nothing(x):
     pass
 
-def mouse_callback(event, x, y, flags, param):
-    global hsv, lower_blue1, upper_blue1, lower_blue2, upper_blue2, lower_blue3, upper_blue3, threshold
 
-    # 마우스 왼쪽 버튼 누를시 위치에 있는 픽셀값을 읽어와서 HSV로 변환합니다.
-    if event == cv.EVENT_LBUTTONDOWN:
-        print(img_color[y, x])
-        color = img_color[y, x]
-
-        one_pixel = np.uint8([[color]])
-        hsv = cv.cvtColor(one_pixel, cv.COLOR_BGR2HSV)
-        hsv = hsv[0][0]
-
-        threshold = cv.getTrackbarPos('threshold', 'img_result')
-        # HSV 색공간에서 마우스 클릭으로 얻은 픽셀값과 유사한 필셀값의 범위를 정합니다.
-        if hsv[0] < 10:
-            print("case1")
-            lower_blue1 = np.array([hsv[0]-10+180, threshold, threshold])
-            upper_blue1 = np.array([180, 255, 255])
-            lower_blue2 = np.array([0, threshold, threshold])
-            upper_blue2 = np.array([hsv[0], 255, 255])
-            lower_blue3 = np.array([hsv[0], threshold, threshold])
-            upper_blue3 = np.array([hsv[0]+10, 255, 255])
-            #     print(i-10+180, 180, 0, i)
-            #     print(i, i+10)
-
-        elif hsv[0] > 170:
-            print("case2")
-            lower_blue1 = np.array([hsv[0], threshold, threshold]) # 세츄레이션 = threshold , value = threshold 더 높은값으로 잡아야 정확한 값검출
-            upper_blue1 = np.array([180, 255, 255])
-            lower_blue2 = np.array([0, threshold, threshold])
-            upper_blue2 = np.array([hsv[0]+10-180, 255, 255])
-            lower_blue3 = np.array([hsv[0]-10, threshold, threshold])
-            upper_blue3 = np.array([hsv[0], 255, 255])
-            #     print(i, 180, 0, i+10-180)
-            #     print(i-10, i)
-        else:
-            print("case3")
-            lower_blue1 = np.array([hsv[0], threshold, threshold])
-            upper_blue1 = np.array([hsv[0]+10, 255, 255])
-            lower_blue2 = np.array([hsv[0]-10, threshold, threshold])
-            upper_blue2 = np.array([hsv[0], 255, 255])
-            lower_blue3 = np.array([hsv[0]-10, threshold, threshold])
-            upper_blue3 = np.array([hsv[0], 255, 255])
-            #     print(i, i+10)
-            #     print(i-10, i)
-
-        print(hsv[0])
-        print("@1", lower_blue1, "~", upper_blue1)
-        print("@2", lower_blue2, "~", upper_blue2)
-        print("@3", lower_blue3, "~", upper_blue3)
+# Function to find angle between two vectors
+def Angle(v1, v2):
+    dot = np.dot(v1, v2)
+    x_modulus = np.sqrt((v1 * v1).sum())
+    y_modulus = np.sqrt((v2 * v2).sum())
+    cos_angle = dot / x_modulus / y_modulus
+    angle = np.degrees(np.arccos(cos_angle))
+    return angle
 
 
-cv.namedWindow('img_color')
-cv.setMouseCallback('img_color', mouse_callback)
-
-cv.namedWindow('img_result') # 결과값
-cv.createTrackbar('threshold', 'img_result', 0, 255, nothing) # 결과값 트랙바
-cv.setTrackbarPos('threshold', 'img_result', 30) # 트랙바의 초기값 셋팅
-cap = cv.VideoCapture(0) # videoCapture 객체 생성,
-
-while(True):
-    #img_color = cv.imread('2.jpg') # 위에서 이미지받으니 필요없음
-    ret, img_color = cap.read()
-    height, width = img_color.shape[:2]
-    img_color = cv.resize(img_color, (width, height), interpolation=cv.INTER_AREA)
-
-    # 원본 영상을 HSV 영상으로 변환합니다.
-    img_hsv = cv.cvtColor(img_color, cv.COLOR_BGR2HSV)
-
-    # 범위 값으로 HSV 이미지에서 마스크를 생성합니다.
-    img_mask1 = cv.inRange(img_hsv, lower_blue1, upper_blue1)
-    img_mask2 = cv.inRange(img_hsv, lower_blue2, upper_blue2)
-    img_mask3 = cv.inRange(img_hsv, lower_blue3, upper_blue3)
-    img_mask = img_mask1 | img_mask2 | img_mask3
-
-    # 오프닝으로 영상에 보이는 작은 점들을 제거
-    # 클로징으로 물체에 생긴 검은 구멍들을 매움(조명에따라 검은구멍이생길수있음)
-    kernel = np.ones((11, 11), np.uint8)
-    img_mask = cv.morphologyEx(img_mask, cv.MORPH_OPEN, kernel)
-    img_mask = cv.morphologyEx(img_mask, cv.MORPH_CLOSE, kernel)
-
-    # 마스크 이미지로 원본 이미지에서 범위값에 해당되는 영상 부분을 획득합니다.
-    img_result = cv.bitwise_and(img_color, img_color, mask=img_mask)
-
-    # 객체 트랙킹
-    # 영상에서 물체의 위치를 얻기위해서는 라벨링이 필요함
-    # 라벨링을 해주면 물체의 중심좌표, 영역의 크기 , 외각박스 좌표들을 얻을 수 있음
-    # cv.connectedComponentsWithStats() 함수사용시 라벨링가능
-
-    numOfLabels, img_label, stats, centroids = cv.connectedComponentsWithStats(img_mask)
-
-    for idx, centroid in enumerate(centroids):
-        if stats[idx][0] == 0 and stats[idx][1] == 0:
-            continue
-        if np.any(np.isnan(centroid)):
-            continue
-        x, y, width, height, area = stats[idx]
-        centerX, centerY = int(centroid[0]), int(centroid[1])
-        # 노이즈로부터의 작은 물체 제거를 위해
-        # 물체의 영역크기 > 50 일경우에만 물체 외각에 선 표시
-        if area > 50:
-            cv.circle(img_color, (centerX, centerY), 10, (0, 0, 255), 10)
-            cv.rectangle(img_color, (x, y), (x + width, y + height), (0, 0, 255))
+# Function to find distance between two points in a list of lists
+def FindDistance(A, B):
+    return np.sqrt(np.power((A[0][0] - B[0][0]), 2) + np.power((A[0][1] - B[0][1]), 2))
 
 
+# Creating a window for HSV track bars
+cv2.namedWindow('HSV_TrackBar')
 
-    cv.imshow('img_color', img_color)
-    cv.imshow('img_mask', img_mask)
-    cv.imshow('img_result', img_result)
+# Starting with 100's to prevent error while masking
+h, s, v = 100, 100, 100
 
+# Creating track bar
+cv2.createTrackbar('h', 'HSV_TrackBar', 0, 179, nothing)
+cv2.createTrackbar('s', 'HSV_TrackBar', 0, 255, nothing)
+cv2.createTrackbar('v', 'HSV_TrackBar', 0, 255, nothing)
 
-    # ESC 키누르면 종료
-    if cv.waitKey(1) & 0xFF == 27:
+while (1):
+
+    # Measure execution time
+    start_time = time.time()
+
+    # Capture frames from the camera
+    ret, frame = cap.read()
+
+    # Blur the image
+    blur = cv2.blur(frame, (3, 3))
+
+    # Convert to HSV color space
+    hsv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
+
+    # Create a binary image with where white will be skin colors and rest is black
+    mask2 = cv2.inRange(hsv, np.array([2, 50, 50]), np.array([15, 255, 255]))
+
+    # Kernel matrices for morphological transformation
+    kernel_square = np.ones((11, 11), np.uint8)
+    kernel_ellipse = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+
+    # Perform morphological transformations to filter out the background noise
+    # Dilation increase skin color area
+    # Erosion increase skin color area
+    dilation = cv2.dilate(mask2, kernel_ellipse, iterations=1)
+    erosion = cv2.erode(dilation, kernel_square, iterations=1)
+    dilation2 = cv2.dilate(erosion, kernel_ellipse, iterations=1)
+    filtered = cv2.medianBlur(dilation2, 5)
+    kernel_ellipse = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (8, 8))
+    dilation2 = cv2.dilate(filtered, kernel_ellipse, iterations=1)
+    kernel_ellipse = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    dilation3 = cv2.dilate(filtered, kernel_ellipse, iterations=1)
+    median = cv2.medianBlur(dilation2, 5)
+    ret, thresh = cv2.threshold(median, 127, 255, 0)
+
+    # Find contours of the filtered frame
+    contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Draw Contours
+    # cv2.drawContours(frame, cnt, -1, (122,122,0), 3)
+    # cv2.imshow('Dilation',median)
+
+    # Find Max contour area (Assume that hand is in the frame)
+    max_area = 100
+    ci = 0
+    for i in range(len(contours)):
+        cnt = contours[i]
+        area = cv2.contourArea(cnt)
+        if (area > max_area):
+            max_area = area
+            ci = i
+
+    cnts = contours[ci]
+
+    # Find convex hull
+    hull = cv2.convexHull(cnts)
+
+    # Find convex defects
+    hull2 = cv2.convexHull(cnts, returnPoints=False)
+    defects = cv2.convexityDefects(cnts, hull2)
+
+    # Get defect points and draw them in the original image
+    FarDefect = []
+    for i in range(defects.shape[0]):
+        s, e, f, d = defects[i, 0]
+        start = tuple(cnts[s][0])
+        end = tuple(cnts[e][0])
+        far = tuple(cnts[f][0])
+        FarDefect.append(far)
+        cv2.line(frame, start, end, [0, 255, 0], 1)
+        cv2.circle(frame, far, 10, [100, 255, 255], 3)
+
+    # Find moments of the largest contour
+    moments = cv2.moments(cnts)
+
+    # Central mass of first order moments
+    if moments['m00'] != 0:
+        cx = int(moments['m10'] / moments['m00'])  # cx = M10/M00
+        cy = int(moments['m01'] / moments['m00'])  # cy = M01/M00
+    centerMass = (cx, cy)
+
+    # Draw center mass
+    cv2.circle(frame, centerMass, 7, [100, 0, 255], 2)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(frame, 'Center', tuple(centerMass), font, 2, (255, 255, 255), 2)
+
+    # Distance from each finger defect(finger webbing) to the center mass
+    distanceBetweenDefectsToCenter = []
+    for i in range(0, len(FarDefect)):
+        x = np.array(FarDefect[i])
+        centerMass = np.array(centerMass)
+        distance = np.sqrt(np.power(x[0] - centerMass[0], 2) + np.power(x[1] - centerMass[1], 2))
+        distanceBetweenDefectsToCenter.append(distance)
+
+    # Get an average of three shortest distances from finger webbing to center mass
+    sortedDefectsDistances = sorted(distanceBetweenDefectsToCenter)
+    AverageDefectDistance = np.mean(sortedDefectsDistances[0:2])
+
+    # Get fingertip points from contour hull
+    # If points are in proximity of 80 pixels, consider as a single point in the group
+    finger = []
+    for i in range(0, len(hull) - 1):
+        if (np.absolute(hull[i][0][0] - hull[i + 1][0][0]) > 80) or (
+                np.absolute(hull[i][0][1] - hull[i + 1][0][1]) > 80):
+            if hull[i][0][1] < 500:
+                finger.append(hull[i][0])
+
+    # The fingertip points are 5 hull points with largest y coordinates
+    finger = sorted(finger, key=lambda x: x[1])
+    fingers = finger[0:5]
+
+    # Calculate distance of each finger tip to the center mass
+    fingerDistance = []
+    for i in range(0, len(fingers)):
+        distance = np.sqrt(np.power(fingers[i][0] - centerMass[0], 2) + np.power(fingers[i][1] - centerMass[0], 2))
+        fingerDistance.append(distance)
+
+    # Finger is pointed/raised if the distance of between fingertip to the center mass is larger
+    # than the distance of average finger webbing to center mass by 130 pixels
+    result = 0
+    for i in range(0, len(fingers)):
+        if fingerDistance[i] > AverageDefectDistance + 130:
+            result = result + 1
+
+    # Print number of pointed fingers
+    cv2.putText(frame, str(result), (100, 100), font, 2, (255, 255, 255), 2)
+
+    # show height raised fingers
+    # cv2.putText(frame,'finger1',tuple(finger[0]),font,2,(255,255,255),2)
+    # cv2.putText(frame,'finger2',tuple(finger[1]),font,2,(255,255,255),2)
+    # cv2.putText(frame,'finger3',tuple(finger[2]),font,2,(255,255,255),2)
+    # cv2.putText(frame,'finger4',tuple(finger[3]),font,2,(255,255,255),2)
+    # cv2.putText(frame,'finger5',tuple(finger[4]),font,2,(255,255,255),2)
+    # cv2.putText(frame,'finger6',tuple(finger[5]),font,2,(255,255,255),2)
+    # cv2.putText(frame,'finger7',tuple(finger[6]),font,2,(255,255,255),2)
+    # cv2.putText(frame,'finger8',tuple(finger[7]),font,2,(255,255,255),2)
+
+    # Print bounding rectangle
+    x, y, w, h = cv2.boundingRect(cnts)
+    img = cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+    cv2.drawContours(frame, [hull], -1, (255, 255, 255), 2)
+
+    ##### Show final image ########
+    cv2.imshow('Dilation', frame)
+    ###############################
+
+    # Print execution time
+    # print time.time()-start_time
+
+    # close the output video by pressing 'ESC'
+    k = cv2.waitKey(5) & 0xFF
+    if k == 27:
         break
 
-
-cv.destroyAllWindows()
+cap.release()
+cv2.destroyAllWindows()
